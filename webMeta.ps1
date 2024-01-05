@@ -1,18 +1,16 @@
 ﻿ # Solicitar al usuario la ruta del directorio a filtrar
 param (
     [string]$dom,
-    [string]$ld, # Inicia la búsqueda a partir de una lsita de dominios
+    [string]$ld, # Inicia la búsqueda a partir de una lista de dominios
     [string]$dir, #  Por default obtiene archivos y resultados en la carpeta webmeta en Documents
     [string]$rc, # Carpeta en la que se entregaran los resultados, distinta de Documents
     [switch]$help = $false #Para ayuda
     #,[switch]$r para recursividad
 )
 
-
-
 function MostrarAyuda {
     Write-Host "
-    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⢀⣰⡋⠉⢆⠀⠀⠀⡀⠤⠒⠒⠀⠐⠒⠤⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⢀⣰⡋⠉⢆⠤⠒⠒⠀⠐⠒⠤⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣼⣃⠀⠉⠳⡀⠈⢆⡴⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠊⠀⢸⠘⠳⣄⠀⠙⣤⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⡄⡠⡤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠜⢁⣤⡴⠏⣢⣀⢈⡶⠤⠧⠀⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣏⣴⠷⣌⠢⣀⠀⠀⠀⠀⠀⠀⠀
@@ -56,7 +54,8 @@ function WM{
 param (
     [string]$dom,
     [string]$dir, #  Por default obtiene archivos y resultados en la carpeta webmeta en Documents
-    [string]$rc # Carpeta en la que se entregaran los resultados, distinta de Documents
+    [string]$rc, # Carpeta en la que se entregaran los resultados, distinta de Documents
+    [int] $i
     #,[switch]$r para recursividad
 )
     #Comprobación de banderas
@@ -68,11 +67,29 @@ param (
     }
     #Si se recibe dir
     elseif (-not $rc){
-        $nombreCarpeta = $dir
-        $rutaDestino = Join-Path -Path $rutaDocumentos -ChildPath $nombreCarpeta
+        $rutaBase=Join-Path -Path $rutaDocumentos -ChildPath $dir
+        if (-not (Test-Path $rutaBase -PathType Container)) {
+        # Si no existe, se crea el directorio
+        New-Item -Path $rutaBase -ItemType Directory
+        Write-Host "Directory created at: $rutaBase"
+        } else {
+            Write-Host "Directory already exists at: $rutaBase"
+        } 
+        $nombreCarpeta = $dir+$i
+        $rutaDestino = Join-Path -Path $rutaBase -ChildPath $nombreCarpeta 
         }
-    else{$rutaDestino = $rc} #Si se rcibe rc 
-
+    #Si se recibe rc 
+    else{
+        if (-not (Test-Path $rc -PathType Container)) {
+        # Si no existe, se crea el directorio
+            New-Item -Path $rc -ItemType Directory
+            Write-Host "Directory created at: $rc"
+        } else {
+            Write-Host "Directory already exists at: $rc"
+        }
+        $rutaDestino = Join-Path -Path $rc -ChildPath $i
+        Write-Host "rutaDestino:"$rutaDestino 
+    }
 
     $nuevaLineaComando = "& '$rutaRelativaWC'"+" "+ $dominioAdquisicion + " /recursive /NOLOGO /o  " +"'$rutaDestino"+"'"
     if (-not (Test-Path $rutaDestino -PathType Container)) {
@@ -97,7 +114,7 @@ param (
 
     #Recorrer toda la carpeta para encontrar los archivos, obtener la metadata y moverlos a "Archivos obtenidos"
     Get-ChildItem -Path $rutaDestino -Recurse |
-        Where-Object { $_.Extension -in $extensiones -and $_.Name -ne  "compilado$($currentTime.ToString('yyyy-MM-dd')).csv"} |
+        Where-Object { $_.Extension -in $extensiones} | # -and $_.Name -ne  "compilado$($currentTime.ToString('yyyy-MM-dd')).csv"
         ForEach-Object {
             $RutaCompleta= $_.FullName
             Write-Host "La ruta del archivo es:" $RutaCompleta
@@ -109,8 +126,8 @@ param (
             [string]$Company = ($exifToolOutput | Select-String "Company").Line -replace "Company\s*:\s*", ""
             [string]$Subject = ($exifToolOutput | Select-String "Subject").Line -replace "subject\s*:\s*", ""
             [string]$Keywords = ($exifToolOutput | Select-String "Keywords").Line -replace "Keywords\s*:\s*", ""
-            [string]$createDate = ($exifToolOutput | Select-String "Create Date").Line -replace "Create Date\s*:\s*", ""
-            [string]$modifyDate = ($exifToolOutput | Select-String "Modify Date").Line -replace "Modify Date\s*:\s*", ""
+            [string]$createDate = ($exifToolOutput | Select-String "File Creation Date/Time").Line -replace "File Creation Date/Time\s*:\s*", ""
+            [string]$modifyDate = ($exifToolOutput | Select-String "File Modification Date/Time").Line -replace "File Modification Date/Time\s*:\s*", ""
             [string]$Producer = ($exifToolOutput | Select-String "Producer").Line -replace "Producer\s*:\s*", ""
             [string]$paginas = ($exifToolOutput | Select-String "Page Count").Line -replace "Page Count\s*:\s*", ""
             [string]$creator = ($exifToolOutput | Select-String "Creator" | Select-Object -First 1).Line -replace "Creator\s*:\s*", ""
@@ -162,13 +179,14 @@ param (
             Write-Host "Se ha obtenido la metadata de $destinoArchivo"
             Move-Item $_.FullName -Destination $destinoArchivo -Force
             Write-Host "Se ha movido $($_.Name) a $destinoArchivo"
-            $rutaCsv = Join-Path $rutaDestino "compilado$($currentTime.ToString('yyyy-MM-dd')).csv"
+            #Write-Host $exiftoolOutput
+            $rutaCsv = Join-Path $rutaDestino "compilado$($dominio)$($currentTime.ToString('yyyy-MM-dd')).csv"
             Write-Host "rutaCSV = "$rutaCSV
             if (Test-Path "$rutaCsv") {
             $resultados | Export-Csv -Path "$rutaCsv" -Append -NoTypeInformation -Encoding UTF8} 
             else {
             $resultados | Export-Csv -Path "$rutaCsv" -NoTypeInformation -Encoding UTF8}
-        
+            
         }
     Write-Host "Proceso completado."
 }
@@ -201,9 +219,11 @@ if (-not ($ld -eq $null -or $ld -eq '')) {
     }
     else{
         $listaDeDominios = Get-Content -Path $ld
+        [int] $i=1
         foreach ($linea in $listaDeDominios){
             $dom=$linea
-            WM -dom $dom -dir $dir -rc $rc
+            WM -dom $dom -dir $dir -rc $rc -i $i 
+            $i++
         }
     }
 } else {
