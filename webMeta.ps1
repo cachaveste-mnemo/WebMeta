@@ -51,13 +51,14 @@ function MostrarAyuda {
 $currentTime = Get-Date
 
 function WM{
-param (
-    [string]$dom,
-    [string]$dir, #  Por default obtiene archivos y resultados en la carpeta webmeta en Documents
-    [string]$rc, # Carpeta en la que se entregaran los resultados, distinta de Documents
-    [int] $i
-    #,[switch]$r para recursividad
-)
+    param (
+        [string]$dom,
+        [string]$dir, #  Por default obtiene archivos y resultados en la carpeta webmeta en Documents
+        [string]$rc, # Carpeta en la que se entregaran los resultados, distinta de Documents
+        [int] $i
+        #,[switch]$r para recursividad
+    )
+    
     #Comprobación de banderas
     $dominioAdquisicion = $dom #Read-Host "Ingrese el dominio del que se obtendrán archivos de ofimática"
     $nombreCarpeta = $dir #Read-Host "Ingrese el nombre de la carpeta en la que se van a alojar los documentos extraídos"
@@ -90,7 +91,7 @@ param (
         $rutaDestino = Join-Path -Path $rc -ChildPath $i
         Write-Host "rutaDestino:"$rutaDestino 
     }
-
+    
     $nuevaLineaComando = "& '$rutaRelativaWC'"+" "+ $dominioAdquisicion + " /recursive /NOLOGO /o  " +"'$rutaDestino"+"'"
     if (-not (Test-Path $rutaDestino -PathType Container)) {
         # Si no existe, se crea el directorio
@@ -151,7 +152,7 @@ param (
                 }
                 $cont++
             }
-                    
+                                
             $resultados = [PSCustomObject]@{
             'Fecha'= $currentTime.ToString('yyyy-MM-dd')
             'URI' = $URL
@@ -174,7 +175,8 @@ param (
             'Parrafos'          = $Parrafos
             'Tipo de Objeto'    = $ObjectType
             }
-       
+            $resultadosArray += $resultados
+            Write-Host "El tamaño del array es:$tamano"       
             $destinoArchivo = Join-Path $rutaArchivos $_.Name
             Write-Host "Se ha obtenido la metadata de $destinoArchivo"
             Move-Item $_.FullName -Destination $destinoArchivo -Force
@@ -182,12 +184,16 @@ param (
             #Write-Host $exiftoolOutput
             $rutaCsv = Join-Path $rutaDestino "compilado$($dominio)$($currentTime.ToString('yyyy-MM-dd')).csv"
             Write-Host "rutaCSV = "$rutaCSV
+            $resultadosArray += $resultados
             if (Test-Path "$rutaCsv") {
-            $resultados | Export-Csv -Path "$rutaCsv" -Append -NoTypeInformation -Encoding UTF8} 
+            $resultados | Export-Csv -Path "$rutaCsv" -Append -NoTypeInformation -Encoding UTF8
+            $resultados | Export-Csv -Path "$rutaBase\compiladoMaestro.csv" -Append -NoTypeInformation -Encoding UTF8  }
             else {
-            $resultados | Export-Csv -Path "$rutaCsv" -NoTypeInformation -Encoding UTF8}
+            $resultados | Export-Csv -Path "$rutaCsv" -NoTypeInformation -Encoding UTF8
+            $resultados | Export-Csv -Path "$rutaBase\compiladoMaestro.csv" -Append -NoTypeInformation -Encoding UTF8} 
             
         }
+        
     Write-Host "Proceso completado."
 }
 
@@ -210,23 +216,24 @@ $rutaRelativaET = Join-Path -Path $directorioWM -ChildPath ".\Ejecutables\exifto
 
 # Navega al directorio que contiene el ejecutable
 Set-Location -Path $directorioWM
-
+$resultadosArray=@()
 # Verificar si la bandera $ld tiene contenido
 if (-not ($ld -eq $null -or $ld -eq '')) {
     Write-Host "La bandera -ld tiene contenido: $ld, se procederá a verificar que la ruta dirija a un archivo .txt válido"
     if (-not (Test-Path $ld -PathType Leaf)){
     Write-Host "La ruta especificada no contiene un archivo .txt válido."
     }
-    else{
+    else{        
         $listaDeDominios = Get-Content -Path $ld
         [int] $i=1
         foreach ($linea in $listaDeDominios){
             $dom=$linea
             WM -dom $dom -dir $dir -rc $rc -i $i 
             $i++
+            }
         }
     }
-} else {
+else{
     Write-Host "La bandera -ld no tiene contenido. Se verificará el contenido de -dom"
     Write-Host $dom $dir $rc
     WM -dom $dom -dir $dir -rc $rc
